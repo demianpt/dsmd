@@ -1,0 +1,49 @@
+{
+  "name": "myowndesignmd",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local-first multi-page website design-system scanner that generates DESIGN.md using Playwright and Ollama.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n server,web -c auto \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "tsx watch server/index.ts",
+    "dev:web": "vite",
+    "build": "npm run clean && vite build && tsup server/index.ts --format esm --platform node --target node20 --out-dir dist-server --sourcemap",
+    "start": "node dist-server/index.js",
+    "preview": "npm run build && npm run start",
+    "clean": "node -e \"const f=require('node:fs'); for (const p of ['dist','dist-server']) f.rmSync(p,{recursive:true,force:true})\"",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm run build",
+    "setup:browser": "playwright install chromium",
+    "check:env": "tsx scripts/check-env.ts",
+    "test:scanner": "tsx scripts/test-scanner.ts"
+  },
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "fast-xml-parser": "^5.2.5",
+    "playwright": "^1.55.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-router-dom": "^6.30.1",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@types/archiver": "^6.0.3",
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.3.0",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^5.0.2",
+    "concurrently": "^9.2.1",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.3"
+  }
+}
