@@ -94,12 +94,24 @@ export interface ComponentEvidence {
   name: string;
   count: number;
   pages: string[];
+  viewports?: ViewportName[];
   signals: string[];
   samples: Array<{
     page: string;
     selector?: string;
     heading?: string;
     classHint?: string;
+    tag?: string;
+    role?: string;
+    width?: number;
+    height?: number;
+    display?: string;
+    gridTemplateColumns?: string;
+    flexDirection?: string;
+    childTags?: string[];
+    interactiveDescendants?: number;
+    imageCount?: number;
+    textLength?: number;
   }>;
 }
 
@@ -127,6 +139,43 @@ export interface InteractionStateEvidence {
   focus?: Record<string, string>;
   hoverDiff?: Record<string, { from: string; to: string }>;
   focusDiff?: Record<string, { from: string; to: string }>;
+  states?: {
+    disabled?: boolean;
+    expanded?: boolean;
+    checked?: boolean;
+    pressed?: boolean;
+    selected?: boolean;
+    invalid?: boolean;
+    current?: string;
+  };
+}
+
+export interface ResponsiveComparison {
+  page: string;
+  desktop?: {
+    viewportWidth: number;
+    documentHeight: number;
+    horizontalPaddings: string[];
+    maxContentWidths: string[];
+  };
+  mobile?: {
+    viewportWidth: number;
+    documentHeight: number;
+    horizontalPaddings: string[];
+    maxContentWidths: string[];
+  };
+  sectionChanges: Array<{
+    section: string;
+    desktopColumns: number;
+    mobileColumns: number;
+    desktopSize: string;
+    mobileSize: string;
+  }>;
+  componentChanges: Array<{
+    component: string;
+    desktopCount: number;
+    mobileCount: number;
+  }>;
 }
 
 export interface ImageEvidence {
@@ -217,7 +266,13 @@ export interface AggregatedEvidence {
   };
   screenshots: {
     primary: string;
-    all: Array<{ url: string; viewport: ViewportName; path: string }>;
+    all: Array<{
+      url: string;
+      viewport: ViewportName;
+      path: string;
+      viewportPath: string;
+      bands: string[];
+    }>;
   };
   colors: ColorEvidence[];
   typography: TypographyEvidence[];
@@ -236,7 +291,51 @@ export interface AggregatedEvidence {
   images: Array<ImageEvidence & { page: string; viewport: ViewportName }>;
   interactions: Array<InteractionStateEvidence & { page: string; viewport: ViewportName }>;
   layouts: Array<{ page: string; viewport: ViewportName; layout: LayoutEvidence }>;
+  responsiveComparisons?: ResponsiveComparison[];
   pages: PageEvidence[];
+}
+
+export type GuidanceConfidence = 'high' | 'medium' | 'low';
+
+export type GuidanceCategory =
+  | 'color'
+  | 'typography'
+  | 'spacing'
+  | 'layout'
+  | 'responsive'
+  | 'imagery'
+  | 'motion'
+  | 'components'
+  | 'content'
+  | 'accessibility';
+
+export interface DesignPrincipleDetail {
+  title: string;
+  principle: string;
+  rationale: string;
+  evidence: string[];
+  implementation: string;
+  confidence: GuidanceConfidence;
+}
+
+export interface EvidenceBackedGuidance {
+  category: GuidanceCategory;
+  rule: string;
+  rationale: string;
+  evidence: string[];
+  confidence: GuidanceConfidence;
+}
+
+export interface QualityCheck {
+  category: GuidanceCategory;
+  check: string;
+  evidence: string;
+}
+
+export interface CoverageAssessment {
+  confidence: GuidanceConfidence;
+  strengths: string[];
+  gaps: string[];
 }
 
 export interface AiAnalysis {
@@ -253,11 +352,23 @@ export interface AiAnalysis {
     name: string;
     purpose: string;
     rules: string[];
+    anatomy?: string[];
+    variants?: string[];
+    states?: string[];
+    responsiveBehavior?: string[];
+    avoid?: string[];
+    evidence?: string[];
+    confidence?: GuidanceConfidence;
   }>;
   designPrinciples: string[];
   dos: string[];
   donts: string[];
   implementationNotes: string[];
+  principleDetails?: DesignPrincipleDetail[];
+  doDetails?: EvidenceBackedGuidance[];
+  dontDetails?: EvidenceBackedGuidance[];
+  qualityChecklist?: QualityCheck[];
+  coverageAssessment?: CoverageAssessment;
 }
 
 export interface ScanResult {

@@ -148,6 +148,44 @@ function componentNarrative(component: ComponentEvidence, analysis: AiAnalysis):
   ];
 }
 
+function evidenceReferences(items: string[] | undefined): string {
+  if (!items?.length) return 'not explicitly cited';
+  return items.map((item) => `\`${escapeMarkdown(item)}\``).join(', ');
+}
+
+function renderPrinciples(analysis: AiAnalysis): string {
+  if (!analysis.principleDetails?.length) return lineList(analysis.designPrinciples);
+  return analysis.principleDetails
+    .map((item) => `### ${escapeMarkdown(item.title)}
+
+${item.principle}
+
+- **Why:** ${item.rationale}
+- **Implementation:** ${item.implementation}
+- **Evidence:** ${evidenceReferences(item.evidence)}
+- **Confidence:** ${item.confidence}`)
+    .join('\n\n');
+}
+
+function renderGuidancePairs(analysis: AiAnalysis): string {
+  if (!analysis.doDetails?.length || !analysis.dontDetails?.length) {
+    return `### Do
+
+${lineList(analysis.dos)}
+
+### Don't
+
+${lineList(analysis.donts)}`;
+  }
+  const rows = analysis.doDetails.map((positive, index) => {
+    const negative = analysis.dontDetails?.[index];
+    return `| ${titleCase(positive.category)} | ${escapeMarkdown(positive.rule)} | ${escapeMarkdown(negative?.rule || 'Avoid unsupported deviations.')} | ${escapeMarkdown(positive.rationale)} | ${evidenceReferences(positive.evidence)} | ${positive.confidence} |`;
+  });
+  return `| Area | Do | Don't | Why | Evidence | Confidence |
+|---|---|---|---|---|---|
+${rows.join('\n')}`;
+}
+
 function lineList(items: string[]): string {
   return items.map((item) => `- ${item}`).join('\n');
 }
@@ -165,6 +203,20 @@ export function generateDesignMd(evidence: AggregatedEvidence, analysis: AiAnaly
   const ratios = imageRatios(evidence);
   const components = evidence.components.slice(0, 24);
   const families = primaryFontFamilies(evidence);
+  const principles = renderPrinciples(analysis);
+  const guidancePairs = renderGuidancePairs(analysis);
+
+  const coverageAssessment = analysis.coverageAssessment
+    ? `### Evidence confidence: ${titleCase(analysis.coverageAssessment.confidence)}
+
+**Strengths**
+
+${lineList(analysis.coverageAssessment.strengths)}
+
+**Known gaps**
+
+${lineList(analysis.coverageAssessment.gaps.length ? analysis.coverageAssessment.gaps : ['No material evidence gaps were identified.'])}`
+    : '';
 
   const colorRows = colors
     .map((color, index) => {
@@ -216,6 +268,9 @@ export function generateDesignMd(evidence: AggregatedEvidence, analysis: AiAnaly
   const componentSections = components
     .map((component) => {
       const notes = componentNarrative(component, analysis);
+      const guide = analysis.componentGuidance.find(
+        (item) => item.name.toLowerCase() === component.name.toLowerCase()
+      );
       const samples = component.samples
         .filter((sample) => sample.heading || sample.classHint)
         .slice(0, 3)
@@ -229,6 +284,28 @@ export function generateDesignMd(evidence: AggregatedEvidence, analysis: AiAnaly
 **Evidence:** ${component.count} matched instance${component.count === 1 ? '' : 's'} across ${component.pages.length} scanned page${component.pages.length === 1 ? '' : 's'}.
 
 ${lineList(notes)}
+${guide?.anatomy?.length ? `
+**Anatomy**
+
+${lineList(guide.anatomy)}` : ''}
+${guide?.variants?.length ? `
+**Observed or candidate variants**
+
+${lineList(guide.variants)}` : ''}
+${guide?.states?.length ? `
+**States**
+
+${lineList(guide.states)}` : ''}
+${guide?.responsiveBehavior?.length ? `
+**Responsive contract**
+
+${lineList(guide.responsiveBehavior)}` : ''}
+${guide?.avoid?.length ? `
+**Avoid**
+
+${lineList(guide.avoid)}` : ''}
+${guide ? `
+**Guidance provenance:** ${evidenceReferences(guide.evidence)} · **Confidence:** ${guide.confidence || 'unspecified'}` : ''}
 ${samples ? `\n**Observed examples**\n\n${samples}` : ''}`;
     })
     .join('\n\n');
@@ -244,7 +321,7 @@ ${samples ? `\n**Observed examples**\n\n${samples}` : ''}`;
   };
   const seenInteractionSelectors = new Set<string>();
   const interactionSections = evidence.interactions
-    .filter((item) => item.hoverDiff || item.focusDiff)
+    .filter((item) => item.hoverDiff || item.focusDiff || Object.values(item.states || {}).some((value) => value !== undefined && value !== false && value !== ''))
     // The selector is the stable identity here; `label` is the element's own
     // text, which repeats across nav items and yields headings like "### A".
     .filter((item) => {
@@ -264,11 +341,16 @@ ${samples ? `\n**Observed examples**\n\n${samples}` : ''}`;
             .map(([key, value]) => `- Focus ${key}: \`${escapeMarkdown(value.from)}\` → \`${escapeMarkdown(value.to)}\``)
             .join('\n')
         : '- No measurable focus change captured.';
+      const states = Object.entries(item.states || {})
+        .filter(([, value]) => value !== undefined && value !== false && value !== '')
+        .map(([key, value]) => `- Semantic state ${key}: \`${String(value)}\``)
+        .join('\n');
       const sample = (item.label || '').replace(/\s+/g, ' ').trim().slice(0, 60);
       return `### ${interactionTagLabel[item.tag] || titleCase(item.tag)} — \`${escapeMarkdown(item.selector)}\`
 ${sample ? `\nSample content: "${escapeMarkdown(sample)}"\n` : ''}
 ${hover}
-${focus}`;
+${focus}
+${states || '- No active semantic state was exposed at capture time.'}`;
     })
     .join('\n\n');
 
@@ -295,13 +377,42 @@ ${focus}`;
     ? ratios.map((item) => `| \`${item.ratio}\` | ${item.count} |`).join('\n')
     : '| — | No stable raster-image ratio was detected |';
 
+  const responsiveSections = (evidence.responsiveComparisons || [])
+    .slice(0, 12)
+    .map((comparison) => {
+      const sectionRows = comparison.sectionChanges.slice(0, 10).map((change) =>
+        `| ${escapeMarkdown(change.section)} | ${change.desktopColumns} | ${change.mobileColumns} | \`${change.desktopSize}\` | \`${change.mobileSize}\` |`
+      ).join('\n');
+      const componentChanges = comparison.componentChanges.length
+        ? comparison.componentChanges.map((change) => `- ${escapeMarkdown(change.component)}: desktop ${change.desktopCount}, mobile ${change.mobileCount}`).join('\n')
+        : '- No component-count difference was measured.';
+      return `### ${escapeMarkdown(new URL(comparison.page).pathname || '/')}
+
+| Section | Desktop columns | Mobile columns | Desktop size | Mobile size |
+|---|---:|---:|---:|---:|
+${sectionRows || '| No section-level structural difference was measured | — | — | — | — |'}
+
+**Component visibility/count changes**
+
+${componentChanges}`;
+    })
+    .join('\n\n');
+
+  const qualityChecklist = analysis.qualityChecklist?.length
+    ? analysis.qualityChecklist.map((item) => `- [ ] **${titleCase(item.category)}:** ${item.check} _(evidence: \`${escapeMarkdown(item.evidence)}\`)_`).join('\n')
+    : [
+        '- [ ] Compare each representative route with its stored screenshots.',
+        '- [ ] Verify typography, spacing, layout and component states against `evidence.json`.',
+        '- [ ] Test keyboard focus, content resizing and reduced-motion behavior.'
+      ].join('\n');
+
   const failureNote = evidence.coverage.failures.length
     ? `\n> ${evidence.coverage.failures.length} requested page view${evidence.coverage.failures.length === 1 ? '' : 's'} could not be measured. See **Scan limitations** at the end of this document.\n`
     : '';
 
   return `# DESIGN.md — ${evidence.source.title}
 
-> Generated from live browser measurements by MyOwnDesignMD on ${new Date(evidence.generatedAt).toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short', timeZone: 'UTC' })} UTC. Exact values below come from rendered DOM/CSS evidence, not screenshot guesses.
+> Generated from live browser measurements by DSMD on ${new Date(evidence.generatedAt).toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short', timeZone: 'UTC' })} UTC. Exact values below come from rendered DOM/CSS evidence, not screenshot guesses.
 
 ## 1. Source and coverage
 
@@ -317,9 +428,18 @@ ${failureNote}
 
 ${renderCoverage(evidence)}
 
+${coverageAssessment}
+
 ## 2. Design overview
 
 ${analysis.overview}
+
+### How to read this document
+
+- **Observed facts** are exact browser measurements in the token, layout, breakpoint and state tables.
+- **Design principles** interpret recurring evidence and include confidence plus provenance.
+- **Implementation contracts** define reusable component anatomy, behavior and responsive expectations.
+- **Anti-patterns** are paired with recommended practice so constraints remain actionable.
 
 ### Visual personality
 
@@ -327,7 +447,7 @@ ${lineList(analysis.visualPersonality)}
 
 ### Core principles
 
-${lineList(analysis.designPrinciples)}
+${principles}
 
 ## 3. Color system
 
@@ -388,6 +508,10 @@ ${evidence.gridColumns.length ? evidence.gridColumns.slice(0, 14).map((item) => 
 ### Responsive strategy
 
 ${analysis.responsiveStrategy}
+
+### Measured desktop/mobile differences
+
+${responsiveSections || 'No paired desktop/mobile comparison was available. Do not infer unmeasured responsive behavior.'}
 
 ## 7. Breakpoints and conditional CSS
 
@@ -453,13 +577,7 @@ ${customVariables || '| — | No CSS custom properties were recovered | — |'}
 
 ## 13. Do / Don't
 
-### Do
-
-${lineList(analysis.dos)}
-
-### Don't
-
-${lineList(analysis.donts)}
+${guidancePairs}
 
 ## 14. Implementation workflow
 
@@ -472,7 +590,13 @@ ${lineList(analysis.implementationNotes)}
 5. Compare against the stored screenshots and resolve differences using \`evidence.json\`.
 6. Test focus, hover, reduced-motion and content-resizing behavior independently.
 
-## 15. Scan limitations
+## 15. Implementation QA checklist
+
+Use this as an acceptance checklist. A checked item should be supported by the cited evidence, not visual intuition alone.
+
+${qualityChecklist}
+
+## 16. Scan limitations
 
 ${evidence.coverage.failures.length ? evidence.coverage.failures.map((failure) => `- **${failure.viewport}:** ${failure.url} — ${escapeMarkdown(failure.error)}`).join('\n') : '- All selected page views completed successfully.'}
 - Content behind authentication, bot challenges, consent walls or geographic restrictions may be absent.
@@ -505,7 +629,7 @@ export function generateTokensCss(evidence: AggregatedEvidence): string {
 
   const lines: string[] = [
     '/*',
-    ` * Generated by MyOwnDesignMD from ${evidence.source.canonicalUrl}`,
+    ` * Generated by DSMD from ${evidence.source.canonicalUrl}`,
     ` * ${evidence.generatedAt}`,
     ' * Primitive measured tokens. Review evidence.json before assigning semantic aliases.',
     ' */',

@@ -7,6 +7,7 @@ import type {
   CssVariableEvidence,
   FontFaceEvidence,
   PageEvidence,
+  ResponsiveComparison,
   TypographyEvidence,
   ViewportName
 } from '../types/domain.js';
@@ -179,11 +180,16 @@ function aggregateComponents(pages: PageEvidence[]): ComponentEvidence[] {
         name: item.name,
         count: 0,
         pages: [],
+        viewports: [],
         signals: [],
         samples: []
       };
       current.count += item.count;
       current.pages = unique([...current.pages, page.page.url]).slice(0, 20);
+      current.viewports = unique([
+        ...(current.viewports || []),
+        ...(item.viewports || [page.viewport])
+      ]) as ViewportName[];
       current.signals = unique([...current.signals, ...item.signals]).slice(0, 12);
       for (const sample of item.samples) {
         const signature = `${sample.page}|${sample.selector}|${sample.heading}|${sample.classHint}`;
@@ -203,6 +209,85 @@ function aggregateComponents(pages: PageEvidence[]): ComponentEvidence[] {
   return [...map.values()].sort(
     (a, b) => b.pages.length * 25 + b.count - (a.pages.length * 25 + a.count)
   );
+}
+
+function responsiveComparisons(pages: PageEvidence[]): ResponsiveComparison[] {
+  const groups = new Map<string, PageEvidence[]>();
+  for (const page of pages) {
+    const url = new URL(page.page.url);
+    url.hash = '';
+    const key = url.href;
+    groups.set(key, [...(groups.get(key) || []), page]);
+  }
+
+  const results: ResponsiveComparison[] = [];
+  for (const [page, variants] of groups) {
+    const desktop = variants.find((item) => item.viewport === 'desktop');
+    const mobile = variants.find((item) => item.viewport === 'mobile');
+    if (!desktop || !mobile) continue;
+
+    const sectionChanges = desktop.sections
+      .map((section) => {
+        const comparison = mobile.sections.find((item) => item.index === section.index);
+        if (!comparison) return null;
+        const sizeChanged =
+          Math.abs(section.width - comparison.width) > 8 ||
+          Math.abs(section.height - comparison.height) > 8;
+        if (section.columns === comparison.columns && !sizeChanged) return null;
+        return {
+          section:
+            section.heading || section.classHint || `${section.tag} ${String(section.index + 1)}`,
+          desktopColumns: section.columns,
+          mobileColumns: comparison.columns,
+          desktopSize: `${section.width}×${section.height}`,
+          mobileSize: `${comparison.width}×${comparison.height}`
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item))
+      .slice(0, 18);
+
+    const desktopComponents = new Map(
+      desktop.components.map((component) => [component.name.toLowerCase(), component])
+    );
+    const mobileComponents = new Map(
+      mobile.components.map((component) => [component.name.toLowerCase(), component])
+    );
+    const componentNames = unique([
+      ...desktopComponents.keys(),
+      ...mobileComponents.keys()
+    ]);
+    const componentChanges = componentNames
+      .map((key) => {
+        const desktopComponent = desktopComponents.get(key);
+        const mobileComponent = mobileComponents.get(key);
+        const desktopCount = desktopComponent?.count || 0;
+        const mobileCount = mobileComponent?.count || 0;
+        if (desktopCount === mobileCount) return null;
+        return {
+          component: desktopComponent?.name || mobileComponent?.name || key,
+          desktopCount,
+          mobileCount
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item))
+      .slice(0, 18);
+
+    const summarize = (item: PageEvidence) => ({
+      viewportWidth: item.layout.viewportWidth,
+      documentHeight: item.layout.documentHeight,
+      horizontalPaddings: item.layout.horizontalPaddings.slice(0, 6).map((value) => value.value),
+      maxContentWidths: item.layout.maxContentWidths.slice(0, 6).map((value) => value.value)
+    });
+
+    results.push({
+      page,
+      desktop: summarize(desktop),
+      mobile: summarize(mobile),
+      sectionChanges,
+      componentChanges
+    });
+  }
+  return results;
 }
 
 export interface AggregateInput {
@@ -226,7 +311,9 @@ export function aggregateEvidence(input: AggregateInput): AggregatedEvidence {
   const screenshots = input.pages.map((page) => ({
     url: page.page.url,
     viewport: page.viewport,
-    path: page.screenshot
+    path: page.screenshot,
+    viewportPath: page.viewportScreenshot,
+    bands: page.bandScreenshots
   }));
 
   return {
@@ -283,6 +370,7 @@ export function aggregateEvidence(input: AggregateInput): AggregatedEvidence {
       viewport: page.viewport,
       layout: page.layout
     })),
+    responsiveComparisons: responsiveComparisons(input.pages),
     pages: input.pages
   };
 }

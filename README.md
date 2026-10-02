@@ -1,4 +1,4 @@
-# MyOwnDesignMD
+# DSMD
 
 A local-first, multi-page website scanner that turns a public website into a detailed `DESIGN.md`, machine-readable evidence, primitive CSS tokens and viewport screenshots.
 
@@ -289,14 +289,14 @@ The result records failures and limitations rather than inventing missing eviden
 
 ## Free and unlimited clarification
 
-MyOwnDesignMD itself contains no credits, subscription gate, remote database or paid crawler. You can run the extraction pipeline as often as your computer permits.
+DSMD itself contains no credits, subscription gate, remote database or paid crawler. You can run the extraction pipeline as often as your computer permits.
 
 The default model name is an Ollama Cloud model. Cloud access is controlled by Ollama, including authentication, availability and any provider-side usage policy. For end-to-end operation that does not depend on a cloud model, use a capable model installed locally in Ollama or set `AI_ENABLED=false`.
 
 ## Project structure
 
 ```text
-myowndesignmd/
+dsmd/
 ├── src/                    React interface
 ├── server/
 │   ├── ai/                 Ollama + fallback analysis

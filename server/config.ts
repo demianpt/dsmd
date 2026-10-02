@@ -40,7 +40,10 @@ export const config = {
   // Vision models downscale a whole-page capture until small text is unreadable,
   // so each page is also sliced into legible top-to-bottom bands.
   screenshotBandHeight: Math.max(600, numberFromEnv('SCREENSHOT_BAND_HEIGHT', 1400)),
-  maxBandsPerPage: Math.max(1, numberFromEnv('MAX_BANDS_PER_PAGE', 6)),
+  // This is a safety ceiling for pathological infinite pages, not an AI image
+  // budget. Normal pages are captured continuously from top to bottom; Ollama
+  // still receives at most `maxAiImages` across the complete scan.
+  maxBandsPerPage: Math.max(1, numberFromEnv('MAX_BANDS_PER_PAGE', 30)),
   maxAiImages: Math.max(1, numberFromEnv('MAX_AI_IMAGES', 14))
 };
 

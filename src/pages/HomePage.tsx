@@ -11,6 +11,7 @@ import {
   TrashIcon
 } from '../components/Icons';
 import { Toggle } from '../components/Toggle';
+import { SiteFavicon } from '../components/SiteFavicon';
 
 function relativeDate(value: string): string {
   const date = new Date(value);
@@ -98,7 +99,7 @@ export function HomePage() {
         <div className="hero-content">
           <h1>Turn any website into a precise design system.</h1>
           <p className="hero-lead">
-            Paste a URL. MyOwnDesignMD discovers representative pages, measures the rendered CSS,
+            Paste a URL. DSMD discovers representative pages, measures the rendered CSS,
             and writes a production-ready <strong>DESIGN.md</strong> with exact tokens, component
             patterns and responsive evidence.
           </p>
@@ -181,7 +182,7 @@ export function HomePage() {
                 <article className="history-card" key={scan.slug}>
                   <Link to={destination} className="history-card-main">
                     <div className="history-favicon">
-                      {scan.faviconUrl ? <img src={scan.faviconUrl} alt="" /> : <GlobeIcon size={18} />}
+                      <SiteFavicon src={scan.faviconUrl} size={18} />
                     </div>
                     <div className="history-card-copy">
                       <h3>{scan.title || scan.domain}</h3>

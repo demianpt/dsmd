@@ -6,7 +6,7 @@ export function AppHeader() {
   return (
     <header className="app-header">
       <Link className="brand" to="/" aria-label="DSMD home">
-        <DsmdLogo size={26} />
+        <DsmdLogo size={37.44} />
       </Link>
       <nav className="header-nav" aria-label="Main navigation">
         {location.pathname !== '/' && <Link to="/">New scan</Link>}

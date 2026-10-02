@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getScan } from '../lib/api';
 import type { ScanMeta, ScanResult, ScanStatus } from '../lib/types';
-import { CheckIcon, ChevronLeftIcon, GlobeIcon, LayersIcon, SparkIcon } from '../components/Icons';
+import { CheckIcon, ChevronLeftIcon, LayersIcon, SparkIcon } from '../components/Icons';
+import { SiteFavicon } from '../components/SiteFavicon';
 
 const stages: Array<{ status: ScanStatus; label: string; description: string }> = [
   { status: 'discovering', label: 'Discover website', description: 'Open the site, inspect links and read sitemaps.' },
@@ -97,7 +98,7 @@ export function ScanPage() {
       <section className="scan-progress-card">
         <div className="scan-site-row">
           <div className="scan-site-icon">
-            {meta.faviconUrl ? <img src={meta.faviconUrl} alt="" /> : <GlobeIcon size={21} />}
+            <SiteFavicon src={meta.faviconUrl} size={21} />
           </div>
           <div>
             <span>GENERATING DESIGN SYSTEM</span>

@@ -28,6 +28,13 @@ export async function getScan(slug: string): Promise<ScanResult> {
   return parseResponse(response);
 }
 
+export async function reanalyzeScan(slug: string): Promise<ScanResult> {
+  const response = await fetch(`/api/scans/${encodeURIComponent(slug)}/reanalyze`, {
+    method: 'POST'
+  });
+  return parseResponse(response);
+}
+
 export async function listScans(): Promise<ScanMeta[]> {
   const response = await fetch('/api/scans?limit=24', { cache: 'no-store' });
   const body = await parseResponse<{ scans: ScanMeta[] }>(response);

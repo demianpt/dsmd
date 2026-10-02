@@ -2,7 +2,7 @@
 set -e
 cd "$(dirname "$0")"
 
-printf '\nMyOwnDesignMD setup\n===================\n\n'
+printf '\nDSMD setup\n==========\n\n'
 
 if ! command -v node >/dev/null 2>&1; then
   echo "Node.js is required. Install Node 20 or newer, then run this file again."

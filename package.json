@@ -1,9 +1,9 @@
 {
-  "name": "myowndesignmd",
+  "name": "dsmd",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Local-first multi-page website design-system scanner that generates DESIGN.md using Playwright and Ollama.",
+  "description": "DSMD is a local-first multi-page website design-system scanner that generates DESIGN.md using Playwright and Ollama.",
   "license": "MIT",
   "engines": {
     "node": ">=20.11.0"
@@ -20,7 +20,8 @@
     "check": "npm run typecheck && npm run build",
     "setup:browser": "playwright install chromium",
     "check:env": "tsx scripts/check-env.ts",
-    "test:scanner": "tsx scripts/test-scanner.ts"
+    "test:scanner": "tsx scripts/test-scanner.ts",
+    "test:ai-repair": "tsx scripts/test-ai-repair.ts"
   },
   "dependencies": {
     "archiver": "^7.0.1",

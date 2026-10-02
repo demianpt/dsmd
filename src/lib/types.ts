@@ -69,6 +69,14 @@ export interface ComponentEvidence {
   samples: Array<{ page: string; selector?: string; heading?: string; classHint?: string }>;
 }
 
+export interface PageScreenshotEvidence {
+  page: { url: string };
+  viewport: string;
+  screenshot: string;
+  viewportScreenshot: string;
+  bandScreenshots: string[];
+}
+
 export interface Evidence {
   generatedAt: string;
   source: {
@@ -89,7 +97,13 @@ export interface Evidence {
   };
   screenshots: {
     primary: string;
-    all: Array<{ url: string; viewport: string; path: string }>;
+    all: Array<{
+      url: string;
+      viewport: string;
+      path: string;
+      viewportPath?: string;
+      bands?: string[];
+    }>;
   };
   colors: ColorEvidence[];
   typography: TypographyEvidence[];
@@ -103,6 +117,7 @@ export interface Evidence {
   fontFaces: Array<{ family: string; weight?: string; style?: string; source?: string }>;
   components: ComponentEvidence[];
   images: Array<{ ratio: number; objectFit: string; width: number; height: number; alt: string }>;
+  pages?: PageScreenshotEvidence[];
 }
 
 export interface Analysis {
@@ -115,11 +130,50 @@ export interface Analysis {
   responsiveStrategy: string;
   imageryStrategy: string;
   motionStrategy: string;
-  componentGuidance: Array<{ name: string; purpose: string; rules: string[] }>;
+  componentGuidance: Array<{
+    name: string;
+    purpose: string;
+    rules: string[];
+    anatomy?: string[];
+    variants?: string[];
+    states?: string[];
+    responsiveBehavior?: string[];
+    avoid?: string[];
+    evidence?: string[];
+    confidence?: 'high' | 'medium' | 'low';
+  }>;
   designPrinciples: string[];
   dos: string[];
   donts: string[];
   implementationNotes: string[];
+  principleDetails?: Array<{
+    title: string;
+    principle: string;
+    rationale: string;
+    evidence: string[];
+    implementation: string;
+    confidence: 'high' | 'medium' | 'low';
+  }>;
+  doDetails?: Array<{
+    category: string;
+    rule: string;
+    rationale: string;
+    evidence: string[];
+    confidence: 'high' | 'medium' | 'low';
+  }>;
+  dontDetails?: Array<{
+    category: string;
+    rule: string;
+    rationale: string;
+    evidence: string[];
+    confidence: 'high' | 'medium' | 'low';
+  }>;
+  qualityChecklist?: Array<{ category: string; check: string; evidence: string }>;
+  coverageAssessment?: {
+    confidence: 'high' | 'medium' | 'low';
+    strengths: string[];
+    gaps: string[];
+  };
 }
 
 export interface ScanResult {

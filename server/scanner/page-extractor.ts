@@ -108,39 +108,86 @@ export async function extractRenderedPage(
       name: string;
       count: number;
       pages: string[];
+      viewports: ViewportName[];
       signals: string[];
       samples: Array<{
         page: string;
         selector?: string;
         heading?: string;
         classHint?: string;
+        tag?: string;
+        role?: string;
+        width?: number;
+        height?: number;
+        display?: string;
+        gridTemplateColumns?: string;
+        flexDirection?: string;
+        childTags?: string[];
+        interactiveDescendants?: number;
+        imageCount?: number;
+        textLength?: number;
       }>;
     };
     const componentMap = new Map<string, ComponentRecord>();
+    const componentRoots = new Map<string, Element[]>();
     const registerComponent = (
       name: string,
       element: Element,
       signal: string,
       selector = ''
     ): void => {
+      const rootKey = name.toLowerCase();
+      const roots = componentRoots.get(rootKey) || [];
       const current: ComponentRecord = componentMap.get(name) || {
         name,
         count: 0,
         pages: [location.href],
+        viewports: [viewportName],
         signals: [],
         samples: []
       };
-      current.count += 1;
       if (!current.signals.includes(signal) && current.signals.length < 8) {
         current.signals.push(signal);
       }
+      if (!current.viewports.includes(viewportName)) current.viewports.push(viewportName);
+      // A semantic class is often repeated on every descendant. Count the
+      // outer component boundary once while preserving all signals found on it.
+      if (roots.some((root) => root === element || root.contains(element))) {
+        componentMap.set(name, current);
+        return;
+      }
+      roots.push(element);
+      componentRoots.set(rootKey, roots);
+      current.count += 1;
       if (current.samples.length < 5) {
+        const style = getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
         const heading = clean(
           element.querySelector('h1,h2,h3,h4,[role="heading"]')?.textContent || '',
           100
         );
         const classHint = clean(element.getAttribute('class') || '', 120);
-        const sample = { page: location.href, selector, heading, classHint };
+        const sample = {
+          page: location.href,
+          selector,
+          heading,
+          classHint,
+          tag: element.tagName.toLowerCase(),
+          role: clean(element.getAttribute('role') || '', 80),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+          display: style.display,
+          gridTemplateColumns: style.display === 'grid' ? style.gridTemplateColumns : '',
+          flexDirection: style.display.includes('flex') ? style.flexDirection : '',
+          childTags: [...element.children]
+            .slice(0, 12)
+            .map((child) => child.tagName.toLowerCase()),
+          interactiveDescendants: element.querySelectorAll(
+            'a[href],button,input,textarea,select,[role="button"]'
+          ).length,
+          imageCount: element.querySelectorAll('img,picture,video').length,
+          textLength: clean(element.textContent || '', 5000).length
+        };
         const signature = `${sample.selector}|${sample.heading}|${sample.classHint}`;
         if (
           !current.samples.some(
@@ -291,12 +338,12 @@ export async function extractRenderedPage(
       if (['input', 'textarea', 'select'].includes(tag)) {
         registerComponent('Form control', element, `<${tag}>`, selectorFor(element));
       }
-      if (tag === 'details') registerComponent('Accordion', element, '<details>', selectorFor(element));
+      if (tag === 'details') registerComponent('Accordion / FAQ', element, '<details>', selectorFor(element));
       if (tag === 'dialog' || role === 'dialog') {
-        registerComponent('Modal / dialog', element, 'dialog semantics', selectorFor(element));
+        registerComponent('Modal / drawer', element, 'dialog semantics', selectorFor(element));
       }
       if (tag === 'blockquote') {
-        registerComponent('Testimonial / quote', element, '<blockquote>', selectorFor(element));
+        registerComponent('Testimonial', element, '<blockquote>', selectorFor(element));
       }
       if (tag === 'table') registerComponent('Table', element, '<table>', selectorFor(element));
       if (tag === 'video') registerComponent('Video', element, '<video>', selectorFor(element));
@@ -610,7 +657,32 @@ export async function extractInteractionStates(page: Page): Promise<InteractionS
         return {
           label: String(label).replace(/\s+/g, ' ').trim().slice(0, 90),
           selector: `${html.tagName.toLowerCase()}${id || classNames}`.slice(0, 140),
-          tag: html.tagName.toLowerCase()
+          tag: html.tagName.toLowerCase(),
+          states: {
+            disabled:
+              (html instanceof HTMLButtonElement ||
+                html instanceof HTMLInputElement ||
+                html instanceof HTMLSelectElement ||
+                html instanceof HTMLTextAreaElement) && html.disabled ||
+              html.getAttribute('aria-disabled') === 'true',
+            expanded: html.hasAttribute('aria-expanded')
+              ? html.getAttribute('aria-expanded') === 'true'
+              : undefined,
+            checked:
+              html instanceof HTMLInputElement && ['checkbox', 'radio'].includes(html.type)
+                ? html.checked
+                : html.hasAttribute('aria-checked')
+                  ? html.getAttribute('aria-checked') === 'true'
+                  : undefined,
+            pressed: html.hasAttribute('aria-pressed')
+              ? html.getAttribute('aria-pressed') === 'true'
+              : undefined,
+            selected: html.hasAttribute('aria-selected')
+              ? html.getAttribute('aria-selected') === 'true'
+              : undefined,
+            invalid: html.getAttribute('aria-invalid') === 'true',
+            current: html.getAttribute('aria-current') || undefined
+          }
         };
       });
       const base = await readStyle(index);

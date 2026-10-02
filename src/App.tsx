@@ -16,7 +16,7 @@ export default function App() {
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
       <footer className="app-footer">
-        <span>MyOwnDesignMD · local-first design extraction</span>
+        <span>DSMD · local-first design extraction</span>
         <span>Measured with Playwright · interpreted with Ollama</span>
       </footer>
     </div>

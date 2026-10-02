@@ -2,7 +2,7 @@
 
 ## 1. Unzip the project
 
-Open Terminal inside the extracted `myowndesignmd` folder.
+Open Terminal inside the extracted `dsmd` folder.
 
 ## 2. Configure it
 

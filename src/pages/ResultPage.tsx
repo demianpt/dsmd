@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { getScan } from '../lib/api';
-import type { ColorEvidence, ScanResult, TypographyEvidence } from '../lib/types';
+import { getScan, reanalyzeScan } from '../lib/api';
+import type { ColorEvidence, Evidence, ScanResult, TypographyEvidence } from '../lib/types';
 import {
   CheckIcon,
   ChevronLeftIcon,
@@ -14,8 +14,17 @@ import {
   RefreshIcon,
   SparkIcon
 } from '../components/Icons';
+import { SiteFavicon } from '../components/SiteFavicon';
 
 type TabName = 'overview' | 'design' | 'evidence';
+
+interface PageCapture {
+  url: string;
+  viewport: string;
+  fullPath: string;
+  segments: string[];
+  hasCompleteSegments: boolean;
+}
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleString(undefined, {
@@ -57,6 +66,47 @@ function getPath(url: string): string {
   }
 }
 
+function pageCaptures(evidence?: Evidence | null): PageCapture[] {
+  if (!evidence) return [];
+
+  return evidence.screenshots.all.map((screenshot) => {
+    const page = evidence.pages?.find(
+      (candidate) =>
+        candidate.page.url === screenshot.url && candidate.viewport === screenshot.viewport
+    );
+    const bands = screenshot.bands?.length
+      ? screenshot.bands
+      : page?.bandScreenshots || [];
+
+    return {
+      url: screenshot.url,
+      viewport: screenshot.viewport,
+      fullPath: screenshot.path,
+      segments: bands.length ? bands : [screenshot.path],
+      hasCompleteSegments: bands.length > 0
+    };
+  });
+}
+
+function fallbackMessage(reason: string): string {
+  if (reason === 'AI_ENABLED=false' || /AI interpretation is disabled/i.test(reason)) {
+    return 'AI interpretation is disabled in the local configuration.';
+  }
+  if (/invalid_value|expected one of|validation failed/i.test(reason)) {
+    return 'The AI response could not be validated, so the evidence-backed deterministic analysis was used.';
+  }
+  if (/unsupported exact values/i.test(reason)) {
+    return 'This result was created before DSMD could repair literal values in AI prose. Retry AI analysis to upgrade it using the saved evidence.';
+  }
+  if (/timed out|abort/i.test(reason)) {
+    return 'AI interpretation timed out, so the evidence-backed deterministic analysis was used.';
+  }
+  const concise = reason.replace(/\s+/g, ' ').trim().slice(0, 220);
+  return concise
+    ? `The evidence-backed deterministic analysis was used because AI interpretation did not complete: ${concise}`
+    : 'The evidence-backed deterministic analysis was used because AI interpretation did not complete.';
+}
+
 export function ResultPage() {
   const { slug = '' } = useParams();
   const navigate = useNavigate();
@@ -64,7 +114,10 @@ export function ResultPage() {
   const [error, setError] = useState('');
   const [tab, setTab] = useState<TabName>('overview');
   const [copied, setCopied] = useState(false);
-  const [activeScreenshot, setActiveScreenshot] = useState(0);
+  const [activeCapture, setActiveCapture] = useState(0);
+  const [activeSegment, setActiveSegment] = useState(0);
+  const [retryingAi, setRetryingAi] = useState(false);
+  const [retryAiError, setRetryAiError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -91,6 +144,7 @@ export function ResultPage() {
     () => primaryTypography(result?.evidence?.typography || []),
     [result]
   );
+  const captures = useMemo(() => pageCaptures(result?.evidence), [result]);
 
   async function copyDesignMd() {
     if (!result) return;
@@ -100,6 +154,20 @@ export function ResultPage() {
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
       setError('Clipboard access was blocked. Use the download button instead.');
+    }
+  }
+
+  async function retryAiAnalysis() {
+    setRetryingAi(true);
+    setRetryAiError('');
+    try {
+      setResult(await reanalyzeScan(slug));
+    } catch (retryError) {
+      setRetryAiError(
+        retryError instanceof Error ? retryError.message : 'AI analysis could not be retried.'
+      );
+    } finally {
+      setRetryingAi(false);
     }
   }
 
@@ -119,8 +187,11 @@ export function ResultPage() {
   }
 
   const { meta, evidence, analysis } = result;
-  const screenshots = evidence.screenshots.all;
-  const currentScreenshot = screenshots[activeScreenshot] || screenshots[0];
+  const currentCapture = captures[activeCapture] || captures[0];
+  const showingFullPage = activeSegment === -1;
+  const currentSegment = showingFullPage
+    ? currentCapture?.fullPath
+    : currentCapture?.segments[activeSegment] || currentCapture?.segments[0];
   const topColors = evidence.colors.slice(0, 12);
   const components = evidence.components.slice(0, 22);
 
@@ -144,7 +215,7 @@ export function ResultPage() {
       <section className="result-hero">
         <div className="result-identity">
           <div className="site-mark">
-            {meta.faviconUrl ? <img src={meta.faviconUrl} alt="" /> : <GlobeIcon size={25} />}
+            <SiteFavicon src={meta.faviconUrl} size={25} />
           </div>
           <div>
             <span className="section-kicker">DESIGN SYSTEM READY</span>
@@ -180,30 +251,96 @@ export function ResultPage() {
         <div className="result-content">
           <section className="preview-section panel">
             <div className="panel-heading">
-              <div><span className="section-kicker">WEBSITE PREVIEW</span><h2>Measured references</h2></div>
-              <span>{activeScreenshot + 1} / {screenshots.length}</span>
+              <div>
+                <span className="section-kicker">FULL-PAGE EVIDENCE</span>
+                <h2>Every captured page section</h2>
+              </div>
+              <span>
+                Page {activeCapture + 1} / {captures.length}
+                {currentCapture && (showingFullPage
+                  ? ' · Full page'
+                  : ` · Segment ${activeSegment + 1} / ${currentCapture.segments.length}`)}
+              </span>
             </div>
             <div className="browser-preview">
               <div className="browser-bar">
                 <span className="traffic-dots"><i /><i /><i /></span>
-                <span className="browser-address"><GlobeIcon size={13} /> {currentScreenshot?.url}</span>
-                <span className="viewport-badge">{currentScreenshot?.viewport}</span>
+                <span className="browser-address"><GlobeIcon size={13} /> {currentCapture?.url}</span>
+                <span className="viewport-badge">{currentCapture?.viewport}</span>
               </div>
-              {currentScreenshot && <img src={currentScreenshot.path} alt={`${currentScreenshot.viewport} screenshot of ${getPath(currentScreenshot.url)}`} />}
+              {currentCapture && currentSegment && (
+                <div className={showingFullPage || !currentCapture.hasCompleteSegments ? 'browser-capture is-full-page' : 'browser-capture'}>
+                  <img
+                    src={currentSegment}
+                    alt={showingFullPage
+                      ? `Full-page ${currentCapture.viewport} screenshot of ${getPath(currentCapture.url)}`
+                      : `${currentCapture.viewport} segment ${activeSegment + 1} of ${currentCapture.segments.length} for ${getPath(currentCapture.url)}`}
+                  />
+                </div>
+              )}
             </div>
-            <div className="screenshot-strip">
-              {screenshots.map((screenshot, index) => (
-                <button
-                  key={`${screenshot.path}-${index}`}
-                  type="button"
-                  className={activeScreenshot === index ? 'is-active' : ''}
-                  onClick={() => setActiveScreenshot(index)}
-                >
-                  <img src={screenshot.path} alt="" />
-                  <span>{getPath(screenshot.url)} · {screenshot.viewport}</span>
-                </button>
-              ))}
-            </div>
+            {captures.length > 1 && (
+              <div className="capture-selector">
+                <div className="capture-selector-heading">
+                  <strong>Pages and viewports</strong>
+                  <span>Select a captured page view</span>
+                </div>
+                <div className="screenshot-strip">
+                  {captures.map((capture, index) => (
+                    <button
+                      key={`${capture.fullPath}-${index}`}
+                      type="button"
+                      className={activeCapture === index ? 'is-active' : ''}
+                      onClick={() => {
+                        setActiveCapture(index);
+                        setActiveSegment(0);
+                      }}
+                      aria-label={`Show ${capture.viewport} capture of ${getPath(capture.url)}`}
+                    >
+                      <img src={capture.segments[0]} alt="" />
+                      <span>{getPath(capture.url)} · {capture.viewport}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {currentCapture && (
+              <div className="capture-selector">
+                <div className="capture-selector-heading">
+                  <strong>Top-to-bottom page evidence</strong>
+                  <span>
+                    {currentCapture.hasCompleteSegments
+                      ? `${currentCapture.segments.length} readable segments captured after lazy content loaded`
+                      : 'Legacy full-page capture — scroll the preview to inspect it'}
+                  </span>
+                </div>
+                {currentCapture.hasCompleteSegments && (
+                  <div className="screenshot-strip segment-strip">
+                    <button
+                      type="button"
+                      className={showingFullPage ? 'is-active' : ''}
+                      onClick={() => setActiveSegment(-1)}
+                      aria-label="Show the continuous full-page screenshot"
+                    >
+                      <img src={currentCapture.fullPath} alt="" />
+                      <span>Full page · scroll</span>
+                    </button>
+                    {currentCapture.segments.map((segment, index) => (
+                      <button
+                        key={`${segment}-${index}`}
+                        type="button"
+                        className={activeSegment === index ? 'is-active' : ''}
+                        onClick={() => setActiveSegment(index)}
+                        aria-label={`Show page segment ${index + 1} of ${currentCapture.segments.length}`}
+                      >
+                        <img src={segment} alt="" />
+                        <span>Segment {index + 1} of {currentCapture.segments.length}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </section>
 
           <div className="two-column-panels">
@@ -262,12 +399,11 @@ export function ResultPage() {
           <section className="panel components-panel">
             <div className="panel-heading"><div><span className="section-kicker">RECURRING UI</span><h2>Components and patterns</h2></div><span>{evidence.components.length} detected</span></div>
             <div className="component-grid">
-              {components.map((component, index) => {
+              {components.map((component) => {
                 const guide = analysis.componentGuidance.find((item) => item.name.toLowerCase() === component.name.toLowerCase());
                 return (
                   <article key={component.name}>
-                    <span className="component-index">{String(index + 1).padStart(2, '0')}</span>
-                    <div><h3>{component.name}</h3><p>{guide?.purpose || `Observed across ${component.pages.length} page templates.`}</p></div>
+                    <div><h3>{component.name}</h3><p>{guide?.purpose || `Observed across ${component.pages.length} page templates.`}</p>{guide?.confidence && <small className={`confidence confidence-${guide.confidence}`}>{guide.confidence} confidence</small>}</div>
                     <span className="component-count">{component.count}×</span>
                   </article>
                 );
@@ -278,11 +414,17 @@ export function ResultPage() {
           <div className="two-column-panels principles-panels">
             <section className="panel">
               <div className="panel-heading"><div><span className="section-kicker">GUIDANCE</span><h2>Design principles</h2></div></div>
-              <ol className="principle-list">{analysis.designPrinciples.map((item) => <li key={item}>{item}</li>)}</ol>
+              <ol className="principle-list">
+                {(analysis.principleDetails || analysis.designPrinciples.map((principle) => ({ title: '', principle, confidence: undefined }))).map((item) => (
+                  <li key={`${item.title}-${item.principle}`}>
+                    <span>{item.title && <strong>{item.title}</strong>}{item.principle}<small>{item.confidence ? `${item.confidence} confidence` : ''}</small></span>
+                  </li>
+                ))}
+              </ol>
             </section>
             <section className="panel do-dont-panel">
-              <div><h3><span className="do-icon">✓</span> Do</h3><ul>{analysis.dos.slice(0, 5).map((item) => <li key={item}>{item}</li>)}</ul></div>
-              <div><h3><span className="dont-icon">×</span> Don't</h3><ul>{analysis.donts.slice(0, 5).map((item) => <li key={item}>{item}</li>)}</ul></div>
+              <div><h3><span className="do-icon">✓</span> Do</h3><ul>{(analysis.doDetails || analysis.dos.map((rule) => ({ rule, category: '' }))).slice(0, 9).map((item) => <li key={item.rule}>{item.category && <small>{item.category}</small>}{item.rule}</li>)}</ul></div>
+              <div><h3><span className="dont-icon">×</span> Don't</h3><ul>{(analysis.dontDetails || analysis.donts.map((rule) => ({ rule, category: '' }))).slice(0, 9).map((item) => <li key={item.rule}>{item.category && <small>{item.category}</small>}{item.rule}</li>)}</ul></div>
             </section>
           </div>
         </div>
@@ -321,7 +463,14 @@ export function ResultPage() {
       )}
 
       {!meta.ai.used && meta.ai.fallbackReason && (
-        <aside className="ai-warning"><SparkIcon size={17} /><div><strong>AI fallback was used</strong><p>The scan and exact tokens are complete, but Ollama was unavailable: {meta.ai.fallbackReason}</p></div></aside>
+        <aside className="ai-warning">
+          <SparkIcon size={17} />
+          <div><strong>Deterministic analysis used</strong><p>{fallbackMessage(meta.ai.fallbackReason)}</p></div>
+          <button className="ghost-button" type="button" disabled={retryingAi} onClick={() => void retryAiAnalysis()}>
+            <RefreshIcon size={15} /> {retryingAi ? 'Retrying…' : 'Retry AI analysis'}
+          </button>
+          {retryAiError && <p className="ai-retry-error">{fallbackMessage(retryAiError)}</p>}
+        </aside>
       )}
     </main>
   );

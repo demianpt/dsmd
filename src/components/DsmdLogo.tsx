@@ -3,49 +3,25 @@ interface DsmdLogoProps {
   title?: string;
 }
 
-/**
- * DSMD wordmark. Drawn as geometric paths rather than <text> so it renders
- * identically everywhere without depending on a webfont being loaded.
- */
-export function DsmdLogo({ size = 30, title = 'DSMD' }: DsmdLogoProps) {
+export function DsmdLogo({ size = 28.42, title = 'DSMD logo' }: DsmdLogoProps) {
   return (
     <svg
-      viewBox="0 0 94 32"
+      className="brand-logo"
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 112 28.42"
+      width={(size * 112) / 28.42}
       height={size}
-      width={(size * 94) / 32}
       role="img"
       aria-label={title}
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
     >
-      <defs>
-        <linearGradient id="dsmd-stroke" x1="0" y1="0" x2="99" y2="32" gradientUnits="userSpaceOnUse">
-          <stop stopColor="var(--color-primary-glow, #1a26ff)" />
-          <stop offset="1" stopColor="var(--color-accent-violet, #7b3aed)" />
-        </linearGradient>
-      </defs>
-
-      {/* D — square counter, industrial */}
-      <path
-        d="M4 4h9a12 12 0 0 1 0 24H4V4Zm6 5v14h3a7 7 0 0 0 0-14h-3Z"
-        fill="currentColor"
-      />
-      {/* S */}
-      <path
-        d="M33.5 27.6c-4.7 0-8-2.3-8.7-6.3l5.6-.9c.4 1.7 1.6 2.6 3.3 2.6 1.5 0 2.5-.7 2.5-1.8 0-1.2-.9-1.7-3.6-2.4-4.9-1.2-7.2-2.9-7.2-6.6 0-4 3.3-6.8 8-6.8 4.5 0 7.6 2.2 8.3 6l-5.5 1c-.3-1.5-1.3-2.4-2.9-2.4-1.4 0-2.3.7-2.3 1.7 0 1.1.9 1.6 3.6 2.3 5 1.3 7.3 3 7.3 6.7 0 4.2-3.4 6.9-8.4 6.9Z"
-        fill="currentColor"
-      />
-      {/* M and the accent D, nudged left to close the DS|MD gap */}
-      <g transform="translate(-5 0)">
-        <path
-          d="M47 28V4h6.6l5.7 12.6L65 4h6.6v24h-5.7V14.7L61.2 25h-3.9l-4.6-10.3V28H47Z"
-          fill="currentColor"
-        />
-        <path
-          d="M74 4h9a12 12 0 0 1 0 24h-9V4Zm6 5v14h3a7 7 0 0 0 0-14h-3Z"
-          fill="url(#dsmd-stroke)"
-        />
+      <title>DSMD</title>
+      <g transform="translate(0 0)">
+        <path d="M19.56,2.72c-1.32-.97-2.89-1.67-4.65-2.11-1.75-.44-4.12-.61-7.19-.61H0v28.42h8.25c2.98,0,5.35-.18,6.93-.61,1.58-.44,2.98-1.05,4.3-2.02,1.75-1.23,3.07-2.89,3.95-4.82.97-2.02,1.4-4.21,1.4-6.75s-.44-4.74-1.32-6.67c-.88-1.93-2.19-3.51-3.95-4.82ZM16.4,21.14c-1.4,1.49-3.77,2.19-6.93,2.19h-3.42V5.09h3.42c3.16,0,5.44.7,6.93,2.19,1.49,1.49,2.19,3.77,2.19,6.93s-.7,5.44-2.19,6.93Z" fill="#ffffff" />
       </g>
+      <g transform="translate(21.7 0)">
+        <path d="M11.22,11.97c-.33-.17-.75-.33-1.25-.58-2.74-1.16-4.16-2.49-4.16-3.91,0-.91.33-1.66,1.08-2.24.66-.58,1.58-.83,2.74-.83.91,0,1.74.17,2.41.58.67.42,1.25,1,1.58,1.75l3.41-3.24c-.91-1.25-1.99-2.08-3.16-2.66-1.16-.58-2.58-.83-4.24-.83-2.83,0-5.07.75-6.81,2.16C1.08,3.57.17,5.4.17,7.65c0,1.66.42,2.99,1.33,4.16.91,1.16,2.58,2.41,4.9,3.57l1.99,1c2.58,1.25,3.91,2.49,3.91,3.82,0,1.08-.42,1.91-1.16,2.58-.75.66-1.83,1-3.24,1-1.08,0-2.16-.25-2.99-.83-.91-.58-1.58-1.33-1.91-2.33l-2.99.08,6.4,7.56c.66.08,1.33.17,2.08.17,2.91,0,5.24-.75,6.98-2.24,1.74-1.5,2.58-3.49,2.58-6.07-.08-1.75-.67-3.24-1.75-4.57-1.08-1.33-2.82-2.49-5.07-3.57Z" fill="#ffffff" />
+      </g>
+      <text x="38.8" y="21.0" fill="#6932e8" fontSize="21px" fontFamily="Manrope, Arial, Helvetica, sans-serif" fontWeight="600" letterSpacing="-0.45">MD</text>
     </svg>
   );
 }

@@ -9,6 +9,8 @@ import { log } from './lib/log.js';
 import { clamp, createScanSlug } from './lib/text.js';
 import { assertSafeUrl, normalizeInputUrl } from './lib/url-safety.js';
 import { scanQueue } from './scanner/queue.js';
+import { analyzeDesignWithOllama } from './ai/ollama.js';
+import { generateDesignMd } from './output/generate.js';
 import {
   createScan,
   deleteScan,
@@ -16,6 +18,9 @@ import {
   getScanResult,
   initializeStorage,
   listScans,
+  patchScanMeta,
+  saveAnalysis,
+  saveTextFile,
   scanDir,
   scanFile
 } from './storage/scans.js';
@@ -43,7 +48,7 @@ function asyncRoute(
 app.get('/api/health', (_request: Request, response: Response) => {
   response.json({
     ok: true,
-    app: 'MyOwnDesignMD',
+    app: 'DSMD',
     version: '1.0.0',
     aiEnabled: config.aiEnabled,
     model: config.ollamaModel,
@@ -114,6 +119,51 @@ app.get(
       return;
     }
     response.json(result);
+  })
+);
+
+app.post(
+  '/api/scans/:slug/reanalyze',
+  asyncRoute(async (request, response) => {
+    const slug = String(request.params.slug);
+    const result = await getScanResult(slug);
+    if (!result) {
+      response.status(404).json({ error: 'Scan not found.' });
+      return;
+    }
+    if (result.meta.status !== 'complete' || !result.evidence) {
+      response.status(409).json({ error: 'Only completed scans can be reanalyzed.' });
+      return;
+    }
+    if (!config.aiEnabled) {
+      response.status(409).json({ error: 'AI interpretation is disabled in the local configuration.' });
+      return;
+    }
+
+    const ai = await analyzeDesignWithOllama(slug, result.evidence);
+    if (!ai.used) {
+      response.status(422).json({
+        error: ai.fallbackReason || 'AI interpretation could not be validated. The existing result was preserved.'
+      });
+      return;
+    }
+
+    const designMd = generateDesignMd(result.evidence, ai.analysis);
+    await Promise.all([
+      saveAnalysis(slug, ai.analysis),
+      saveTextFile(slug, 'DESIGN.md', designMd),
+      patchScanMeta(slug, {
+        ai: {
+          enabled: true,
+          requestedModel: config.ollamaModel,
+          used: true,
+          model: ai.model,
+          fallbackReason: undefined
+        }
+      })
+    ]);
+
+    response.json(await getScanResult(slug));
   })
 );
 
@@ -232,7 +282,7 @@ app.use((error: unknown, _request: Request, response: Response, _next: NextFunct
 
 await initializeStorage();
 const server = app.listen(config.port, config.host, () => {
-  log.info(`MyOwnDesignMD server listening at http://${config.host}:${config.port}`);
+  log.info(`DSMD server listening at http://${config.host}:${config.port}`);
   log.info(`Ollama model: ${config.ollamaModel} (${config.aiEnabled ? 'enabled' : 'disabled'})`);
 });
 

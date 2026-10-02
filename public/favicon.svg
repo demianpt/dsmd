@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="DSMD">
+  <!--
+    Favicon derived from the DSMD wordmark: the accent "D" — the one glyph the
+    wordmark already renders in the brand gradient — set on a rounded tile.
+    A wordmark is unreadable at 16px, so the monogram carries the identity.
+  -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6932e8"/>
+      <stop offset="1" stop-color="#8125ec"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#tile)"/>
+  <!-- Same square-countered D geometry as DsmdLogo, scaled to the tile. -->
+  <path d="M18 15h12.5a17 17 0 0 1 0 34H18V15Zm8.5 7.2v19.6h4a9.8 9.8 0 0 0 0-19.6h-4Z" fill="#ffffff"/>
+</svg>

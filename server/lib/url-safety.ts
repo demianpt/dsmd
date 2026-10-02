@@ -108,7 +108,7 @@ export async function safeFetch(
       ...init,
       redirect: 'manual',
       headers: {
-        'user-agent': 'MyOwnDesignMD/1.0 (+local design-system scanner)',
+        'user-agent': 'DSMD/1.0 (+local design-system scanner)',
         accept: '*/*',
         ...init.headers
       }

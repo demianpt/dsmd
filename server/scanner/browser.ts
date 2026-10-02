@@ -181,8 +181,9 @@ const keepNamesShim = (): void => {
  * the page into near-square bands keeps type legible, so the model reads the
  * page top to bottom instead of guessing below the fold.
  *
- * Bands are sampled evenly across the full height, so a tall page is covered
- * end to end rather than only from the top.
+ * Normal pages are captured as contiguous bands, so every part of the page is
+ * available in the result viewer. Only pathological pages above the safety
+ * ceiling are sampled end to end.
  */
 async function captureBands(input: {
   page: Page;
@@ -193,13 +194,15 @@ async function captureBands(input: {
   width: number;
 }): Promise<string[]> {
   const { page, slug, stem, screenshotsDirectory, documentHeight, width } = input;
-  const height = Math.min(documentHeight, WEBP_MAX_DIMENSION);
+  const height = Math.max(0, Math.ceil(documentHeight));
   const band = config.screenshotBandHeight;
   if (height <= 0 || width <= 0) return [];
 
   const total = Math.max(1, Math.ceil(height / band));
   const take = Math.min(total, config.maxBandsPerPage);
-  // Evenly spaced starts so the whole page is represented, not just the top.
+  // Capture every contiguous band whenever the page fits under the safety cap.
+  // If it does not, retain end-to-end coverage instead of silently showing only
+  // the beginning of the page.
   const offsets =
     take >= total
       ? Array.from({ length: total }, (_, i) => i * band)
@@ -345,6 +348,19 @@ export async function scanRenderedPage(input: ScanRenderedPageInput): Promise<Pa
       documentHeight: raw.layout.documentHeight,
       width: Math.min(raw.layout.documentWidth, dimensions.width)
     });
+    const expectedBands = Math.max(
+      1,
+      Math.ceil(raw.layout.documentHeight / config.screenshotBandHeight)
+    );
+    if (expectedBands > config.maxBandsPerPage) {
+      warnings.push(
+        `Captured ${bandScreenshots.length} of ${expectedBands} page segments because the page exceeded the screenshot safety limit.`
+      );
+    } else if (bandScreenshots.length < expectedBands) {
+      warnings.push(
+        `Captured ${bandScreenshots.length} of ${expectedBands} page segments because one or more screenshots could not be saved.`
+      );
+    }
 
     return {
       ...raw,
