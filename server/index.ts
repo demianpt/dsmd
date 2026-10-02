@@ -28,6 +28,13 @@ import type { ScanMeta } from './types/domain.js';
 
 const app = express();
 app.disable('x-powered-by');
+app.use((_request, response, next) => {
+  response.setHeader(
+    'X-Robots-Tag',
+    'noindex, nofollow, noarchive, nosnippet, noimageindex'
+  );
+  next();
+});
 app.use(express.json({ limit: '2mb' }));
 
 const createSchema = z.object({
